@@ -1,0 +1,107 @@
+{
+  "_comment": "url が空文字のものはサイトに表示されない。あとからリンクを増やしたくなったら groups の items に足すか、url を埋めるだけでよい。mark は左の四角に入る文字、accent はホバー時の色。",
+  "ctas": [
+    {
+      "mark": "YT",
+      "url": "https://www.youtube.com/@pesu_",
+      "accent": "#d8382a",
+      "label": {
+        "ja": "YouTube",
+        "en": "YouTube",
+        "zh": "YouTube"
+      },
+      "sub": {
+        "ja": "歌ってみた本編",
+        "en": "Full covers",
+        "zh": "翻唱正片"
+      }
+    },
+    {
+      "mark": "FB",
+      "url": "https://pesu-utautai.fanbox.cc/",
+      "accent": "#c9a24a",
+      "label": {
+        "ja": "FANBOX",
+        "en": "FANBOX",
+        "zh": "FANBOX"
+      },
+      "sub": {
+        "ja": "制作を支える",
+        "en": "Support the work",
+        "zh": "支持创作"
+      }
+    }
+  ],
+  "_groups_note": "増やしたくなったとき用のひな形。url を入れた項目だけが CTA の下にリスト表示される。",
+  "groups": [
+    {
+      "head": {
+        "ja": "",
+        "en": "",
+        "zh": ""
+      },
+      "items": [
+        {
+          "mark": "X",
+          "url": "",
+          "accent": "#e4e4e4",
+          "label": {
+            "ja": "X",
+            "en": "X",
+            "zh": "X"
+          },
+          "sub": {
+            "ja": "告知はこちら",
+            "en": "Announcements",
+            "zh": "作品发布"
+          }
+        },
+        {
+          "mark": "TC",
+          "url": "",
+          "accent": "#5bb3e0",
+          "label": {
+            "ja": "ツイキャス",
+            "en": "TwitCasting",
+            "zh": "TwitCasting"
+          },
+          "sub": {
+            "ja": "生放送・歌枠",
+            "en": "Live streams",
+            "zh": "直播・歌回"
+          }
+        },
+        {
+          "mark": "TT",
+          "url": "",
+          "accent": "#4fd2d6",
+          "label": {
+            "ja": "TikTok",
+            "en": "TikTok",
+            "zh": "TikTok"
+          },
+          "sub": {
+            "ja": "切り抜き",
+            "en": "Clips",
+            "zh": "片段"
+          }
+        },
+        {
+          "mark": "BL",
+          "url": "",
+          "accent": "#4aa3d4",
+          "label": {
+            "ja": "bilibili",
+            "en": "bilibili",
+            "zh": "哔哩哔哩"
+          },
+          "sub": {
+            "ja": "中国語圏向け",
+            "en": "For Chinese viewers",
+            "zh": "中文区"
+          }
+        }
+      ]
+    }
+  ]
+}

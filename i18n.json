@@ -1,0 +1,29 @@
+{
+  "ja": {
+    "htmlLang": "ja",
+    "role": "VOCALOID COVER ARTIST",
+    "tagline": "低音で、感情をぶん殴る。\nボカロを中心に歌っています。",
+    "latestLabel": "最新曲",
+    "latestCta": "YouTubeで観る",
+    "footNote": "無断転載・二次配布はご遠慮ください。",
+    "metaDescription": "低音で感情ぶん殴る、歌い手ペスのリンク。最新曲・YouTube・FANBOX。"
+  },
+  "en": {
+    "htmlLang": "en",
+    "role": "VOCALOID COVER ARTIST",
+    "tagline": "A low voice that hits where it hurts.\nVocaloid covers, mostly.",
+    "latestLabel": "LATEST",
+    "latestCta": "Watch on YouTube",
+    "footNote": "Please do not repost or redistribute without permission.",
+    "metaDescription": "pesu — a Japanese vocalist covering Vocaloid songs with a deep low voice. Latest release, YouTube and FANBOX."
+  },
+  "zh": {
+    "htmlLang": "zh",
+    "role": "VOCALOID 翻唱歌手",
+    "tagline": "用低音，把情绪狠狠砸出来。\n主要翻唱VOCALOID曲。",
+    "latestLabel": "最新曲",
+    "latestCta": "在YouTube观看",
+    "footNote": "请勿未经许可转载或二次分发。",
+    "metaDescription": "日本翻唱歌手ペス（pesu）。最新作品、YouTube、FANBOX。"
+  }
+}

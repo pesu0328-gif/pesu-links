@@ -1,0 +1,517 @@
+/* =========================================================
+   ペス / pesu — link site
+   漆黒 + グレイン。用意する画像はアイコン1枚だけで、
+   質感(ノイズ・ヴィネット・ハロー)は全てCSS/SVGで生成している。
+   背景の色は最新曲のYouTubeサムネをぼかしたもので、曲が変わると自動で入れ替わる。
+   ========================================================= */
+
+:root{
+  --bg:        #08080a;
+  --bg-lift:   #101014;
+  --line:      rgba(255,255,255,.11);
+  --line-hi:   rgba(255,255,255,.28);
+  --fg:        #efe9e1;
+  --fg-dim:    #9a938c;
+  --fg-faint:  #6a645f;
+
+  --accent-yt:      #d8382a;   /* YouTube: 彩度を落とした赤 */
+  --accent-support: #c9a24a;   /* 支援: くすんだ金 */
+  --accent:         var(--fg-dim);  /* 個別リンクが上書きする既定値 */
+
+  --mincho: "Shippori Mincho B1", "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif SC", "Songti SC", serif;
+  --gothic: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", "Noto Sans SC", "PingFang SC", system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --wrap: 33rem;
+  --ease: cubic-bezier(.22,.61,.36,1);
+}
+
+*,*::before,*::after{ box-sizing:border-box; }
+
+html{ -webkit-text-size-adjust:100%; overflow-x:hidden; }
+
+body{
+  margin:0;
+  min-height:100dvh;
+  background:var(--bg);
+  background-image:linear-gradient(180deg, #0c0916 0%, #08080a 46%);
+  background-attachment:fixed;
+  background-repeat:no-repeat;   /* fixed 指定時にビューポート外でタイルされるのを防ぐ */
+  color:var(--fg);
+  font-family:var(--gothic);
+  font-size:16px;
+  line-height:1.7;
+  letter-spacing:.02em;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+
+/* 中国語モードは明朝→宋体、ゴシック→黑体に自然に落ちるよう順序を入れ替える */
+html[data-lang="zh"]{
+  --mincho:"Noto Serif SC","Songti SC","Shippori Mincho B1",serif;
+  --gothic:"Noto Sans SC","PingFang SC","Zen Kaku Gothic New",system-ui,sans-serif;
+}
+
+img{ max-width:100%; display:block; }
+
+a{ color:inherit; text-decoration:none; }
+
+:focus-visible{
+  outline:1px solid var(--fg);
+  outline-offset:3px;
+}
+
+/* ---------- 質感レイヤー ---------- */
+
+/* フィルムグレイン。feTurbulence を data URI で埋め込むので追加リクエストゼロ */
+.grain{
+  position:fixed;
+  inset:-60%;
+  z-index:90;
+  pointer-events:none;
+  opacity:.05;
+  mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation:grain 6s steps(5) infinite;
+  will-change:transform;
+}
+@keyframes grain{
+  0%  { transform:translate(0,0) }
+  20% { transform:translate(-3%,2%) }
+  40% { transform:translate(2%,-3%) }
+  60% { transform:translate(-2%,-2%) }
+  80% { transform:translate(3%,1%) }
+  100%{ transform:translate(0,0) }
+}
+
+/* 最新曲のサムネをぼかして背景に敷く。--thumb は app.js が最新曲から設定する。
+   曲が変わるとサイト全体の色が入れ替わる。 */
+.bgart{
+  position:fixed;
+  inset:-14%;
+  z-index:0;
+  pointer-events:none;
+  background-image:var(--thumb, none);
+  background-size:cover;
+  background-position:center 24%;
+  filter:blur(56px) saturate(.8) brightness(.46);
+  opacity:0;
+  transition:opacity 1.2s var(--ease);
+}
+.bgart.is-on{ opacity:1; }
+
+/* 上部の淡い光と、全体のヴィネット */
+.halo{
+  position:fixed;
+  inset:0;
+  z-index:1;
+  pointer-events:none;
+  background:
+    radial-gradient(60rem 30rem at 50% -10rem, rgba(138,102,200,.26), transparent 64%),
+    radial-gradient(46rem 46rem at 50% 118%, rgba(201,162,74,.08), transparent 60%),
+    radial-gradient(130% 95% at 50% 36%, rgba(8,8,10,.34) 30%, rgba(4,4,6,.78) 100%);
+}
+
+/* ---------- 言語切替 ---------- */
+
+.langbar{
+  position:relative;
+  z-index:10;
+  display:flex;
+  justify-content:flex-end;
+  padding:.7rem max(1.25rem, env(safe-area-inset-right)) 0 1.25rem;
+}
+.langbar__inner{
+  display:flex;
+  gap:1px;
+  background:var(--line);
+  border:1px solid var(--line);
+  border-radius:2px;
+  overflow:hidden;
+}
+.langbtn{
+  appearance:none;
+  border:0;
+  margin:0;
+  padding:.34rem .62rem;
+  background:var(--bg);
+  color:var(--fg-faint);
+  font-family:var(--gothic);
+  font-size:.66rem;
+  letter-spacing:.1em;
+  line-height:1.4;
+  cursor:pointer;
+  transition:color .25s var(--ease), background .25s var(--ease);
+}
+.langbtn:hover{ color:var(--fg-dim); }
+.langbtn[aria-current="true"]{ color:var(--fg); background:var(--bg-lift); }
+
+/* ---------- レイアウト ---------- */
+
+.wrap{
+  position:relative;
+  z-index:5;
+  width:100%;
+  max-width:var(--wrap);
+  margin:0 auto;
+  padding:1rem 1.25rem 3.5rem;
+  padding-bottom:max(3.5rem, env(safe-area-inset-bottom));
+}
+
+/* ---------- ヒーロー ---------- */
+
+.hero{
+  text-align:center;
+  padding:.25rem 0 1.9rem;   /* ヒーローは詰め、最新曲の手前だけ大きく空ける */
+}
+
+.avatar{
+  position:relative;
+  width:80px;
+  height:80px;
+  margin:0 auto 1rem;
+  border-radius:50%;
+  background:var(--bg-lift);
+  box-shadow:0 0 0 1px var(--line), 0 0 46px rgba(148,116,200,.16);
+  overflow:hidden;
+}
+.avatar img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  border-radius:50%;
+}
+.avatar__fallback{
+  position:absolute;
+  inset:0;
+  display:none;
+  place-items:center;
+  font-family:var(--mincho);
+  font-size:2.1rem;
+  color:var(--fg-dim);
+}
+/* icon.png がまだ無いときは頭文字を出す（画像が届く前でもサイトが成立する） */
+.avatar.is-empty img{ display:none; }
+.avatar.is-empty .avatar__fallback{ display:grid; }
+
+.name{
+  margin:0;
+  font-family:var(--mincho);
+  font-weight:800;
+  font-size:clamp(2.05rem, 9vw, 2.75rem);
+  line-height:1.1;
+  letter-spacing:.16em;
+  text-indent:.16em;      /* letter-spacing の右余白を打ち消して中央を保つ */
+}
+.romaji{
+  margin:.55rem 0 0;
+  font-size:.66rem;
+  font-weight:400;
+  letter-spacing:.44em;
+  text-indent:.44em;
+  color:var(--fg-faint);
+  text-transform:lowercase;
+}
+.tagline{
+  margin:.9rem auto 0;
+  max-width:26rem;
+  font-size:.8rem;
+  line-height:1.95;
+  color:var(--fg-dim);
+}
+
+/* 肩書き。左右に細い罫を引いて、名前とキャッチの間の階層をはっきりさせる */
+.role{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:.85em;
+  margin:.85rem 0 0;
+  font-size:.58rem;
+  letter-spacing:.3em;
+  text-indent:.3em;
+  color:#a58fd0;
+}
+.role::before,
+.role::after{
+  content:"";
+  width:clamp(1.5rem, 8vw, 2.75rem);
+  height:1px;
+  background:linear-gradient(90deg, transparent, rgba(165,143,208,.5));
+}
+.role::after{ transform:rotate(180deg); }
+
+/* ---------- 最新曲 ---------- */
+
+/* モバイルではカードを画面幅いっぱいに逃がす。
+   transform ではなく margin で逃がしているので、hover の translateY と衝突しない。
+   wrap の最大幅(33rem)を超える画面では、はみ出す意味が無いので通常のカードに戻す。 */
+.latest{
+  display:block;
+  width:100vw;
+  max-width:100vw;
+  margin-inline:calc(50% - 50vw);
+  margin-bottom:1.15rem;
+  border:1px solid var(--line);
+  border-left:0;
+  border-right:0;
+  border-radius:0;
+  background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0));
+  overflow:hidden;
+  transition:border-color .3s var(--ease), transform .3s var(--ease);
+}
+.latest:hover{ border-color:var(--line-hi); transform:translateY(-2px); }
+
+.latest__thumb{
+  position:relative;
+  aspect-ratio:16/9;
+  background:var(--bg-lift);
+}
+.latest__thumb img{
+  width:100%; height:100%;
+  object-fit:cover;
+  filter:saturate(.72) contrast(1.06) brightness(.86);
+  transition:filter .4s var(--ease);
+}
+.latest:hover .latest__thumb img{ filter:saturate(.95) contrast(1.02) brightness(1); }
+.latest__thumb::after{  /* サムネ下端をカードに溶かす */
+  content:"";
+  position:absolute; inset:0;
+  background:linear-gradient(180deg, transparent 42%, rgba(8,8,10,.92) 100%);
+}
+
+.latest__body{
+  position:relative;
+  max-width:var(--wrap);
+  margin:0 auto;
+  padding:1.05rem 1.25rem 1.2rem;
+}
+.latest__title{ font-size:1.24rem; }
+
+@media (min-width:34rem){
+  .latest{
+    width:auto;
+    max-width:none;
+    margin-inline:0;
+    margin-bottom:.9rem;
+    border-radius:3px;
+    border-left:1px solid var(--line);
+    border-right:1px solid var(--line);
+  }
+  .latest__body{ padding:1.1rem 1.25rem 1.25rem; }
+  .latest__title{ font-size:1.12rem; }
+}
+.eyebrow{
+  display:block;
+  font-size:.6rem;
+  letter-spacing:.32em;
+  color:var(--accent-yt);
+  margin-bottom:.5rem;
+}
+.latest__title{
+  display:block;
+  font-family:var(--mincho);
+  font-weight:600;
+  font-size:1.12rem;
+  line-height:1.6;
+}
+.latest__cta{
+  display:block;
+  margin-top:.7rem;
+  font-size:.7rem;
+  letter-spacing:.14em;
+  color:var(--fg-faint);
+}
+.latest__cta::after{ content:" →"; }
+
+/* ---------- 主導線（YouTube / 支援）---------- */
+
+.ctas{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:.6rem;
+  margin-bottom:2.2rem;
+}
+/* リンク一覧が空のときは、CTAとフッターの間の死んだ余白を詰める */
+.ctas:has(+ .links:empty){ margin-bottom:1.2rem; }
+
+/* 極小画面でだけ縦積みにする。iPhone SE(320px)でも2列を維持する */
+@media (max-width:19.5rem){
+  .ctas{ grid-template-columns:1fr; }
+}
+
+.cta{
+  position:relative;
+  display:flex;
+  flex-direction:column;
+  justify-content:flex-end;
+  min-height:6.5rem;
+  padding:1.85rem 1rem .95rem;
+  border:1px solid var(--line);
+  border-radius:3px;
+  overflow:hidden;
+  isolation:isolate;
+  transition:border-color .3s var(--ease), transform .3s var(--ease);
+}
+.cta::before{        /* accent の光。hover で立ち上がる */
+  content:"";
+  position:absolute;
+  inset:auto -30% -60% -30%;
+  height:150%;
+  z-index:-1;
+  background:radial-gradient(60% 100% at 50% 100%, var(--accent), transparent 70%);
+  opacity:.26;
+  transition:opacity .4s var(--ease);
+}
+.cta:hover{ border-color:var(--line-hi); transform:translateY(-2px); }
+.cta:hover::before{ opacity:.62; }
+
+.cta__arrow{
+  position:absolute;
+  top:.9rem; right:1rem;
+  font-size:.8rem;
+  color:var(--accent);
+  opacity:.65;
+  transition:transform .3s var(--ease), opacity .3s var(--ease);
+}
+.cta:hover .cta__arrow{ transform:translateX(3px); opacity:1; }
+
+.cta__mark{
+  position:absolute;
+  top:.95rem; left:1rem;
+  font-family:var(--mono);
+  font-size:.62rem;
+  letter-spacing:.14em;
+  color:var(--accent);
+}
+.cta__label{
+  font-family:var(--mincho);
+  font-weight:600;
+  font-size:1.05rem;
+  line-height:1.4;
+}
+.cta__sub{
+  margin-top:.3rem;
+  font-size:.68rem;
+  letter-spacing:.08em;
+  color:var(--fg-dim);
+}
+
+/* ---------- リンク一覧 ---------- */
+
+.links{
+  display:flex;
+  flex-direction:column;
+  gap:.5rem;
+}
+
+.link{
+  position:relative;
+  display:flex;
+  align-items:center;
+  gap:.95rem;
+  padding:.9rem 1.1rem;
+  border:1px solid var(--line);
+  border-radius:3px;
+  transition:border-color .3s var(--ease), background .3s var(--ease), transform .3s var(--ease);
+}
+.link::before{      /* 左端のアクセントバー */
+  content:"";
+  position:absolute;
+  left:-1px; top:50%;
+  width:2px; height:0;
+  background:var(--accent, var(--fg-dim));
+  transform:translateY(-50%);
+  transition:height .3s var(--ease);
+}
+.link:hover{
+  border-color:var(--line-hi);
+  background:rgba(255,255,255,.025);
+  transform:translateX(2px);
+}
+.link:hover::before{ height:56%; }
+
+.link__mark{
+  flex:none;
+  display:grid;
+  place-items:center;
+  width:1.9rem; height:1.9rem;
+  border:1px solid var(--line);
+  border-radius:2px;
+  font-family:var(--mono);
+  font-size:.6rem;
+  letter-spacing:.02em;
+  color:var(--fg-dim);
+  transition:color .3s var(--ease), border-color .3s var(--ease);
+}
+.link:hover .link__mark{ color:var(--accent, var(--fg)); border-color:var(--line-hi); }
+
+.link__text{ flex:1 1 auto; min-width:0; }
+.link__label{
+  display:block;
+  font-size:.92rem;
+  line-height:1.5;
+}
+.link__sub{
+  display:block;
+  font-size:.66rem;
+  letter-spacing:.06em;
+  color:var(--fg-faint);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.link__arrow{
+  flex:none;
+  font-size:.8rem;
+  color:var(--fg-faint);
+  transition:transform .3s var(--ease), color .3s var(--ease);
+}
+.link:hover .link__arrow{ transform:translateX(3px); color:var(--fg-dim); }
+
+/* セクション見出し（支援ブロックの手前など） */
+.links__head{
+  margin:2rem 0 .1rem;
+  font-size:.6rem;
+  font-weight:400;
+  letter-spacing:.32em;
+  color:var(--fg-faint);
+}
+.links__head:first-child{ margin-top:0; }
+
+/* ---------- フッター ---------- */
+
+.foot{
+  margin-top:2.6rem;
+  padding-top:1.5rem;
+  border-top:1px solid var(--line);
+  text-align:center;
+}
+.foot__note{
+  margin:0 0 .9rem;
+  font-size:.68rem;
+  line-height:1.9;
+  color:var(--fg-faint);
+}
+.foot__copy{
+  margin:0;
+  font-family:var(--mono);
+  font-size:.6rem;
+  letter-spacing:.14em;
+  color:var(--fg-faint);
+}
+
+/* ---------- 出現アニメーション ---------- */
+
+.reveal{
+  opacity:0;
+  transform:translateY(10px);
+  animation:reveal .8s var(--ease) forwards;
+}
+@keyframes reveal{ to{ opacity:1; transform:none; } }
+
+@media (prefers-reduced-motion:reduce){
+  .grain{ animation:none; }
+  .reveal{ animation:none; opacity:1; transform:none; }
+  *{ transition-duration:.01ms !important; }
+}

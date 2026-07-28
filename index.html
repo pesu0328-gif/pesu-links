@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ja" data-lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ペス / pesu</title>
+<meta name="description" content="低音で感情ぶん殴る、歌い手ペスのリンク。最新曲・YouTube・FANBOX。">
+<meta name="theme-color" content="#08080a">
+
+<meta property="og:type" content="profile">
+<meta property="og:title" content="ペス / pesu">
+<meta property="og:description" content="低音で感情ぶん殴る、歌い手ペスのリンク。">
+<!-- og:image は GitHub Actions が最新曲のサムネURLに毎日書き換える -->
+<meta property="og:image" content="icon.png">
+<meta name="twitter:card" content="summary_large_image">
+
+<link rel="icon" href="icon.png">
+<link rel="apple-touch-icon" href="icon.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="bgart" aria-hidden="true"></div>
+<div class="halo" aria-hidden="true"></div>
+<div class="grain" aria-hidden="true"></div>
+
+<div class="langbar">
+  <div class="langbar__inner" role="group" id="langbar" aria-label="Language">
+    <button type="button" class="langbtn" data-setlang="ja">日本語</button>
+    <button type="button" class="langbtn" data-setlang="en">EN</button>
+    <button type="button" class="langbtn" data-setlang="zh">中文</button>
+  </div>
+</div>
+
+<main class="wrap">
+
+  <header class="hero">
+    <div class="avatar" id="avatar">
+      <img src="icon.png" alt="" id="avatarImg" width="80" height="80">
+      <span class="avatar__fallback" aria-hidden="true">ペ</span>
+    </div>
+    <h1 class="name">ペス</h1>
+    <p class="romaji">pesu</p>
+    <p class="role" data-i18n="role"></p>
+    <p class="tagline" data-i18n="tagline"></p>
+  </header>
+
+  <a class="latest" id="latest" href="#" hidden>
+    <div class="latest__thumb"><img id="latestThumb" src="" alt="" loading="lazy"></div>
+    <div class="latest__body">
+      <span class="eyebrow" data-i18n="latestLabel"></span>
+      <span class="latest__title" id="latestTitle"></span>
+      <span class="latest__cta" data-i18n="latestCta"></span>
+    </div>
+  </a>
+
+  <section class="ctas" id="ctas" aria-label="Main"></section>
+
+  <nav class="links" id="links" aria-label="Links"></nav>
+
+  <footer class="foot">
+    <p class="foot__note" data-i18n="footNote"></p>
+    <p class="foot__copy">© <span id="year"></span> ペス</p>
+  </footer>
+
+</main>
+
+<noscript>
+  <div class="wrap" style="padding-top:0">
+    <nav class="links">
+      <a class="link" href="https://www.youtube.com/@pesu_"><span class="link__mark">YT</span><span class="link__label">YouTube</span></a>
+    </nav>
+  </div>
+</noscript>
+
+<script src="app.js"></script>
+</body>
+</html>

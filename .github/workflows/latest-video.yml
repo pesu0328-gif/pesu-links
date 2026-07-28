@@ -1,0 +1,249 @@
+# 公開リポジトリ側の .github/workflows/latest-video.yml に置くファイル。
+#
+# 何をするか:
+#   YouTubeの「動画」タブ(https://www.youtube.com/@pesu_/videos)のHTMLを取得し、
+#   一番上の動画のIDとタイトルを latest.json に書き込んでコミットする。
+#   Shortsは別タブなので「動画」タブからは本編だけが取れる（切り抜きの混入を防ぐ）。
+#   あわせて index.html の og:image も同じサムネURLに書き換えるので、
+#   SNSにURLを貼ったときのサムネが常に最新曲になる（ogp.png を用意しなくていい）。
+#   さらに YouTubeチャンネルのアイコンを icon.png として保存するので、
+#   プロフィール画像も手で用意しなくていい（AUTO_ICON: "false" で止められる）。
+#   取得や解析に失敗したときは何も書き換えずにジョブを失敗させる。
+#   → サイトは前回の内容のまま生き続け、GitHubから失敗通知メールが届く。
+
+name: 最新曲を取得
+
+on:
+  schedule:
+    - cron: "0 21 * * *" # UTC 21:00 = JST 翌6:00
+  workflow_dispatch: # Actionsタブから手動実行するためのボタン
+
+permissions:
+  contents: write
+
+concurrency:
+  group: latest-video
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 最新曲とチャンネルアイコンを取得して反映する
+        env:
+          CHANNEL_URL: https://www.youtube.com/@pesu_/videos
+          # YouTubeのチャンネルアイコンを icon.png に自動で同期する。
+          # 別のアイコンを手動で使いたくなったら "false" にする。
+          AUTO_ICON: "true"
+        run: |
+          python3 - <<'PY'
+          import json, os, re, sys, urllib.request, datetime
+
+          URL = os.environ["CHANNEL_URL"]
+          AUTO_ICON = os.environ.get("AUTO_ICON", "true").lower() == "true"
+          OUT = "latest.json"
+          HTML = "index.html"
+          ICON = "icon.png"
+
+          UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/125.0 Safari/537.36")
+
+          def fetch_bytes(url, timeout=30):
+              req = urllib.request.Request(url, headers={
+                  "User-Agent": UA,
+                  "Accept-Language": "ja,en;q=0.8",
+                  # EU圏のランナーに割り当てられたときの同意ページを回避する
+                  "Cookie": "CONSENT=YES+cb; SOCS=CAI",
+              })
+              with urllib.request.urlopen(req, timeout=timeout) as res:
+                  return res.read()
+
+          def fetch(url):
+              return fetch_bytes(url).decode("utf-8", "replace")
+
+          def sync_icon(html):
+              """チャンネルページの og:image はチャンネルアイコン。
+              これを icon.png として保存し、プロフィール画像を手動管理から外す。
+              失敗しても既存の icon.png はそのままにして、処理は続ける。"""
+              if not AUTO_ICON:
+                  return
+              m = re.search(r'<meta property="og:image" content="([^"]+)"', html)
+              if not m:
+                  print("チャンネルアイコンのURLが見つかりません。icon.png は据え置きます。")
+                  return
+              # yt3.googleusercontent.com/...=s160-c-k-... のサイズ指定を大きくする
+              url = re.sub(r"=s\d+", "=s512", m.group(1))
+              try:
+                  data = fetch_bytes(url)
+              except Exception as e:
+                  print(f"チャンネルアイコンを取得できませんでした: {e}")
+                  return
+              if len(data) < 1000 or not data.startswith((b"\x89PNG", b"\xff\xd8", b"RIFF")):
+                  print("取得したデータが画像として不正なので無視します。")
+                  return
+              try:
+                  with open(ICON, "rb") as f:
+                      if f.read() == data:
+                          print("アイコンは変更なし")
+                          return
+              except OSError:
+                  pass
+              with open(ICON, "wb") as f:
+                  f.write(data)
+              print(f"アイコンを更新: {url} ({len(data)} bytes)")
+
+          def extract_json(html, marker):
+              """marker の直後から始まる JSON オブジェクトを、括弧を数えて切り出す。
+              正規表現だと入れ子や文字列内の } を誤認するため手で走査する。"""
+              i = html.find(marker)
+              if i < 0:
+                  return None
+              i = html.find("{", i)
+              if i < 0:
+                  return None
+              depth, in_str, esc = 0, False, False
+              for j in range(i, len(html)):
+                  c = html[j]
+                  if in_str:
+                      if esc:      esc = False
+                      elif c == "\\": esc = True
+                      elif c == '"': in_str = False
+                      continue
+                  if c == '"':   in_str = True
+                  elif c == "{": depth += 1
+                  elif c == "}":
+                      depth -= 1
+                      if depth == 0:
+                          try:
+                              return json.loads(html[i:j + 1])
+                          except json.JSONDecodeError as e:
+                              sys.exit(f"ytInitialData のJSON解析に失敗: {e}")
+              return None
+
+          def walk(node):
+              """videoRenderer を、ページに出てくる順（＝新しい順）に取り出す"""
+              if isinstance(node, dict):
+                  vr = node.get("videoRenderer")
+                  if isinstance(vr, dict) and vr.get("videoId"):
+                      yield vr
+                  for v in node.values():
+                      yield from walk(v)
+              elif isinstance(node, list):
+                  for v in node:
+                      yield from walk(v)
+
+          def title_of(vr):
+              t = vr.get("title") or {}
+              if t.get("simpleText"):
+                  return t["simpleText"]
+              runs = t.get("runs") or []
+              return "".join(r.get("text", "") for r in runs)
+
+          def is_short(vr, title):
+              if re.search(r"#shorts?\b", title, re.I):
+                  return True
+              blob = json.dumps(vr.get("thumbnailOverlays", []), ensure_ascii=False)
+              return "SHORTS" in blob or "reelWatch" in json.dumps(vr.get("navigationEndpoint", {}))
+
+          def selected_tab(data):
+              """「動画」タブ（選択中のタブ）の中身だけに絞る。
+              絞れなかった場合はページ全体を対象にフォールバックする。"""
+              tabs = (data.get("contents", {})
+                          .get("twoColumnBrowseResultsRenderer", {})
+                          .get("tabs", []))
+              for tab in tabs:
+                  r = tab.get("tabRenderer") or {}
+                  if r.get("selected") and r.get("content"):
+                      return r["content"]
+              return data
+
+          html = fetch(URL)
+          sync_icon(html)   # 最新曲の取得結果に関係なく、アイコンは毎回そろえる
+
+          data = extract_json(html, "ytInitialData")
+          if data is None:
+              sys.exit("ytInitialData が見つかりませんでした。YouTube側のHTML構造が変わった可能性があります。")
+
+          picked = None
+          for vr in walk(selected_tab(data)):
+              title = title_of(vr).strip()
+              if not title or is_short(vr, title):
+                  continue
+              picked = {"videoId": vr["videoId"], "title": title}
+              break
+
+          if picked is None:
+              sys.exit("動画タブから本編動画を1件も取り出せませんでした。")
+
+          def thumb_url(vid):
+              """maxresdefault が無い動画があるので、実在するほうを選ぶ"""
+              maxres = f"https://i.ytimg.com/vi/{vid}/maxresdefault.jpg"
+              try:
+                  req = urllib.request.Request(maxres, method="HEAD")
+                  with urllib.request.urlopen(req, timeout=15) as res:
+                      if res.status == 200:
+                          return maxres
+              except Exception as e:
+                  print(f"maxresdefault が取れないので hqdefault を使う: {e}")
+              return f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg"
+
+          new = {
+              "videoId": picked["videoId"],
+              "title": picked["title"],
+              "url": f"https://www.youtube.com/watch?v={picked['videoId']}",
+              "thumb": thumb_url(picked["videoId"]),
+              "updatedAt": datetime.datetime.now(datetime.timezone.utc)
+                              .strftime("%Y-%m-%dT%H:%M:%SZ"),
+          }
+
+          try:
+              with open(OUT, encoding="utf-8") as f:
+                  old = json.load(f)
+          except (OSError, json.JSONDecodeError):
+              old = {}
+
+          if (old.get("videoId") == new["videoId"]
+                  and old.get("title") == new["title"]
+                  and old.get("thumb") == new["thumb"]):
+              print(f"変更なし: {new['title']}")
+              sys.exit(0)
+
+          with open(OUT, "w", encoding="utf-8") as f:
+              json.dump(new, f, ensure_ascii=False, indent=2)
+              f.write("\n")
+
+          # SNS共有用のサムネ(og:image)も最新曲のサムネに差し替える
+          with open(HTML, encoding="utf-8") as f:
+              html_src = f.read()
+          patched, n = re.subn(
+              r'(<meta property="og:image" content=")[^"]*(">)',
+              lambda m: m.group(1) + new["thumb"] + m.group(2),
+              html_src,
+          )
+          if n == 0:
+              sys.exit("index.html に og:image のメタタグが見つかりませんでした。")
+          if patched != html_src:
+              with open(HTML, "w", encoding="utf-8") as f:
+                  f.write(patched)
+
+          print(f"更新: {new['title']} ({new['videoId']})")
+          PY
+
+      - name: 変更があればコミットする
+        run: |
+          set -euo pipefail
+          # git status なら「変更あり」も「新規ファイル」も同じ判定で拾える
+          if [ -z "$(git status --porcelain -- latest.json index.html icon.png)" ]; then
+            echo "コミットするものはありません"
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- latest.json index.html
+          # AUTO_ICON が false のときは icon.png が存在しないことがある
+          if [ -e icon.png ]; then git add -- icon.png; fi
+          git commit -m "最新曲とアイコンを更新"
+          git push
