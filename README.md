@@ -23,7 +23,7 @@
 |---|---|
 | `latest.json` | 最新曲のIDとタイトル。YouTubeの「動画」タブの一番上を取る |
 | `index.html` の `og:image` | SNSにURLを貼ったときのサムネ。最新曲のサムネになる |
-| `icon.png` | プロフィール画像と favicon。YouTubeチャンネルのアイコンを512pxで取る |
+| `icon.png` / `icon.jpg` | プロフィール画像と favicon。YouTubeチャンネルのアイコンを512pxで取る。拡張子は中身に合わせて決まり、`index.html` の参照も自動で書き換わる |
 
 Shorts は YouTube 側で別タブに分かれているため、切り抜きが最新曲として表示されることはない。
 
