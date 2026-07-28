@@ -1,0 +1,141 @@
+# 一時的な調査用ワークフロー。
+# チャンネルの概要欄と登録リンク（X等）をログに出すだけで、リポジトリは変更しない。
+# 目的（キャッチコピーの元ネタ確認・XのURL取得）が済んだら削除する。
+
+name: プロフィール調査（一時）
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: チャンネルの概要欄と外部リンクを取得する
+        env:
+          CHANNEL: https://www.youtube.com/@pesu_
+          LATEST_VIDEO: https://www.youtube.com/watch?v=x0PkmZaJ2VA
+        run: |
+          python3 - <<'PY'
+          import json, os, re, sys, urllib.parse, urllib.request
+
+          UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/125.0 Safari/537.36")
+
+          def get(url):
+              req = urllib.request.Request(url, headers={
+                  "User-Agent": UA,
+                  "Accept-Language": "ja,en;q=0.8",
+                  "Cookie": "CONSENT=YES+cb; SOCS=CAI",
+              })
+              with urllib.request.urlopen(req, timeout=30) as r:
+                  return r.read().decode("utf-8", "replace")
+
+          def slab(html, marker):
+              i = html.find(marker)
+              if i < 0:
+                  return None
+              i = html.find("{", i)
+              depth, in_str, esc = 0, False, False
+              for j in range(i, len(html)):
+                  c = html[j]
+                  if in_str:
+                      if esc:      esc = False
+                      elif c == "\\": esc = True
+                      elif c == '"': in_str = False
+                      continue
+                  if c == '"':   in_str = True
+                  elif c == "{": depth += 1
+                  elif c == "}":
+                      depth -= 1
+                      if depth == 0:
+                          try:
+                              return json.loads(html[i:j + 1])
+                          except json.JSONDecodeError:
+                              return None
+              return None
+
+          def find_all(node, key):
+              """入れ子のどこにあっても key の値を集める"""
+              out = []
+              if isinstance(node, dict):
+                  if key in node:
+                      out.append(node[key])
+                  for v in node.values():
+                      out += find_all(v, key)
+              elif isinstance(node, list):
+                  for v in node:
+                      out += find_all(v, key)
+              return out
+
+          print("=" * 60)
+          print("1. チャンネルの概要欄（channelMetadataRenderer.description）")
+          print("=" * 60)
+          ch = get(os.environ["CHANNEL"])
+          data = slab(ch, "ytInitialData")
+          desc = None
+          if data:
+              meta = find_all(data, "channelMetadataRenderer")
+              if meta:
+                  desc = meta[0].get("description")
+          if not desc:
+              m = re.search(r'<meta name="description" content="([^"]*)"', ch)
+              desc = m.group(1) if m else None
+          print(desc or "(取得できませんでした)")
+
+          print()
+          print("=" * 60)
+          print("2. 概要欄の別経路（aboutChannelViewModel）")
+          print("=" * 60)
+          about = find_all(data or {}, "aboutChannelViewModel")
+          if about:
+              a = about[0]
+              print("description:", a.get("description"))
+              print("subscriber :", a.get("subscriberCountText"))
+              print("videoCount :", a.get("videoCountText"))
+              print("links      :")
+              print(json.dumps(a.get("links", []), ensure_ascii=False, indent=2)[:3000])
+          else:
+              print("(aboutChannelViewModel はチャンネルページに含まれていませんでした)")
+
+          print()
+          print("=" * 60)
+          print("3. チャンネルページに含まれる外部リンク（YouTube/Google以外）")
+          print("=" * 60)
+          blob = json.dumps(data, ensure_ascii=False) if data else ch
+          urls = set()
+          for u in re.findall(r'https?://[\w./%?=&#\-~+:@]+', blob):
+              u = u.rstrip('\\",.')
+              if re.search(r"(youtube\.com|youtu\.be|ytimg\.com|googleusercontent|google\.com|"
+                           r"gstatic\.com|schema\.org|ggpht\.com|googleapis\.com|"
+                           r"policies\.google|support\.google|accounts\.google)", u):
+                  continue
+              urls.add(u)
+          # YouTubeのリンクは redirect 経由になることがあるので q= を復元する
+          for u in sorted(urls):
+              m = re.search(r"[?&]q=([^&]+)", u)
+              shown = urllib.parse.unquote(m.group(1)) if m else u
+              print(" ", shown)
+          if not urls:
+              print("(外部リンクは見つかりませんでした)")
+
+          print()
+          print("=" * 60)
+          print("4. 最新曲の概要欄（attributedDescription）")
+          print("=" * 60)
+          try:
+              w = get(os.environ["LATEST_VIDEO"])
+              m = re.search(r'"attributedDescription":\{"content":"((?:[^"\\]|\\.)*)"', w)
+              if m:
+                  print(m.group(1).encode().decode("unicode_escape"))
+              else:
+                  m = re.search(r'"shortDescription":"((?:[^"\\]|\\.)*)"', w)
+                  print(m.group(1).encode().decode("unicode_escape") if m
+                        else "(取得できませんでした)")
+          except Exception as e:
+              print(f"(取得失敗: {e})")
+          PY
