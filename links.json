@@ -18,7 +18,7 @@
     },
     {
       "mark": "FB",
-      "url": "https://pesu-utautai.fanbox.cc/",
+      "url": "https://pesu-utautai.fanbox.cc/plans",
       "accent": "#c9a24a",
       "label": {
         "ja": "FANBOX",
@@ -43,7 +43,7 @@
       "items": [
         {
           "mark": "X",
-          "url": "",
+          "url": "https://x.com/pesu_utautai",
           "accent": "#e4e4e4",
           "label": {
             "ja": "X",
@@ -51,9 +51,9 @@
             "zh": "X"
           },
           "sub": {
-            "ja": "告知はこちら",
-            "en": "Announcements",
-            "zh": "作品发布"
+            "ja": "曲への想いと告知",
+            "en": "Thoughts on each song",
+            "zh": "作品发布与心得"
           }
         },
         {
