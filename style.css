@@ -18,6 +18,8 @@
   --accent-support: #c9a24a;   /* 支援: くすんだ金 */
   --accent:         var(--fg-dim);  /* 個別リンクが上書きする既定値 */
 
+  /* 名前(pesu)だけに使う欧文ディスプレイ書体 */
+  --display: "Playfair Display", "Hiragino Mincho ProN", serif;
   --mincho: "Shippori Mincho B1", "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif SC", "Songti SC", serif;
   --gothic: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", "Noto Sans SC", "PingFang SC", system-ui, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -201,21 +203,22 @@ a{ color:inherit; text-decoration:none; }
 
 .name{
   margin:0;
-  font-family:var(--mincho);
-  font-weight:800;
-  font-size:clamp(2.05rem, 9vw, 2.75rem);
-  line-height:1.1;
-  letter-spacing:.16em;
-  text-indent:.16em;      /* letter-spacing の右余白を打ち消して中央を保つ */
+  font-family:var(--display);
+  font-weight:700;
+  font-size:clamp(2.7rem, 13vw, 3.7rem);
+  line-height:1.05;
+  letter-spacing:.04em;
+  text-indent:.04em;      /* letter-spacing の右余白を打ち消して中央を保つ */
 }
+/* 名前の下に添える日本語表記。日本語圏の認知を切らないために残す */
 .romaji{
-  margin:.55rem 0 0;
-  font-size:.66rem;
-  font-weight:400;
-  letter-spacing:.44em;
-  text-indent:.44em;
+  margin:.5rem 0 0;
+  font-family:var(--mincho);
+  font-size:.78rem;
+  font-weight:600;
+  letter-spacing:.42em;
+  text-indent:.42em;
   color:var(--fg-faint);
-  text-transform:lowercase;
 }
 .tagline{
   margin:.8rem auto 0;
@@ -326,7 +329,7 @@ a{ color:inherit; text-decoration:none; }
 }
 .latest__title{ font-size:1.5rem; line-height:1.45; }
 
-@media (min-width:34rem){
+@media (min-width:45rem){
   .latest{
     width:auto;
     max-width:none;
@@ -564,4 +567,61 @@ a{ color:inherit; text-decoration:none; }
   .grain{ animation:none; }
   .reveal{ animation:none; opacity:1; transform:none; }
   *{ transition-duration:.01ms !important; }
+}
+
+
+/* ---------- 大きい画面（PC）だけ一段大きくする ----------
+   スマホの見え方は変えず、横幅に余裕がある画面でだけ
+   カラム幅と文字を上げて、余白が勝ってしまうのを防ぐ。 */
+@media (min-width:60rem){
+  :root{ --wrap:43rem; }
+
+  .wrap{ padding-top:2rem; }
+  .hero{ padding:1.25rem 0 2.6rem; }
+
+  .avatar{
+    width:148px; height:148px;
+    margin-bottom:1.5rem;
+    box-shadow:0 0 0 1px rgba(255,255,255,.18), 0 0 72px rgba(148,116,200,.26);
+  }
+  .avatar__fallback{ font-size:3.6rem; }
+
+  .name{ font-size:5.4rem; }
+  .romaji{ font-size:.94rem; margin-top:.75rem; }
+  .role{ font-size:.68rem; margin-top:1.15rem; }
+  .role::before,
+  .role::after{ width:3.5rem; }
+  .tagline{ font-size:.94rem; line-height:2.05; margin-top:1.25rem; max-width:32rem; }
+
+  .latest{ margin-bottom:1.1rem; }
+  .latest__body{ padding:1.4rem 1.6rem 1.6rem; }
+  .eyebrow{ font-size:.68rem; }
+  .latest__title{ font-size:1.7rem; }
+  .latest__cta{ font-size:.8rem; padding:.62rem 1.15rem; margin-top:1.1rem; }
+  .latest__play{ width:4.6rem; height:4.6rem; }
+  .latest__play::before{
+    margin-left:.24rem;
+    border-left:1rem solid rgba(255,255,255,.94);
+    border-top:.6rem solid transparent;
+    border-bottom:.6rem solid transparent;
+  }
+
+  .ctas{ gap:.85rem; margin-bottom:.85rem; }
+  .cta{ min-height:9rem; padding:2.4rem 1.4rem 1.35rem; }
+  .cta__mark{ top:1.25rem; left:1.4rem; font-size:.7rem; }
+  .cta__arrow{ top:1.2rem; right:1.4rem; font-size:.95rem; }
+  .cta__label{ font-size:1.4rem; }
+  .cta__sub{ font-size:.8rem; margin-top:.4rem; }
+
+  .link{ padding:1.15rem 1.4rem; gap:1.15rem; }
+  .link__mark{ width:2.3rem; height:2.3rem; font-size:.7rem; }
+  .link__label{ font-size:1.05rem; }
+  .link__sub{ font-size:.76rem; }
+  .link__arrow{ font-size:.95rem; }
+
+  .langbtn{ font-size:.72rem; padding:.4rem .72rem; }
+
+  .foot{ margin-top:3.4rem; }
+  .foot__note{ font-size:.76rem; }
+  .foot__copy{ font-size:.66rem; }
 }
