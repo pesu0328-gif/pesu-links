@@ -8,8 +8,14 @@
 #   SNSにURLを貼ったときのサムネが常に最新曲になる（ogp.png を用意しなくていい）。
 #   さらに YouTubeチャンネルのアイコンを icon.png として保存するので、
 #   プロフィール画像も手で用意しなくていい（AUTO_ICON: "false" で止められる）。
-#   取得や解析に失敗したときは何も書き換えずにジョブを失敗させる。
+#   取得や解析に失敗したときは latest.json を書き換えずにジョブを失敗させる。
 #   → サイトは前回の内容のまま生き続け、GitHubから失敗通知メールが届く。
+#
+# YouTubeのHTML構造について:
+#   YouTubeは動画一覧の表現を videoRenderer から lockupViewModel へ移行させており、
+#   どちらが返ってくるかは時期やA/Bテストで変わる。両方に対応させ、
+#   どちらでも拾えなかったときは中身のレンダラー種別を一覧で出力して、
+#   次に何を対応すべきかがログだけで分かるようにしている。
 
 name: 最新曲を取得
 
@@ -39,7 +45,7 @@ jobs:
           AUTO_ICON: "true"
         run: |
           python3 - <<'PY'
-          import json, os, re, sys, urllib.request, datetime
+          import collections, json, os, re, sys, urllib.request, datetime
 
           URL = os.environ["CHANNEL_URL"]
           AUTO_ICON = os.environ.get("AUTO_ICON", "true").lower() == "true"
@@ -123,30 +129,57 @@ jobs:
                               sys.exit(f"ytInitialData のJSON解析に失敗: {e}")
               return None
 
-          def walk(node):
-              """videoRenderer を、ページに出てくる順（＝新しい順）に取り出す"""
+          # 動画1件を表しうるキー。YouTubeは新しい lockupViewModel へ移行中で、
+          # 時期によってどちらが返るか変わるため両方を見る。
+          ITEM_KEYS = ("videoRenderer", "gridVideoRenderer", "lockupViewModel")
+
+          def walk_items(node):
+              """動画1件ぶんのノードを、ページに出てくる順（＝新しい順）に取り出す"""
               if isinstance(node, dict):
-                  vr = node.get("videoRenderer")
-                  if isinstance(vr, dict) and vr.get("videoId"):
-                      yield vr
+                  for key in ITEM_KEYS:
+                      v = node.get(key)
+                      if isinstance(v, dict):
+                          yield key, v
                   for v in node.values():
-                      yield from walk(v)
+                      yield from walk_items(v)
               elif isinstance(node, list):
                   for v in node:
-                      yield from walk(v)
+                      yield from walk_items(v)
 
-          def title_of(vr):
-              t = vr.get("title") or {}
+          def text_of(t):
+              if not isinstance(t, dict):
+                  return ""
               if t.get("simpleText"):
                   return t["simpleText"]
-              runs = t.get("runs") or []
-              return "".join(r.get("text", "") for r in runs)
+              if t.get("content"):
+                  return t["content"]
+              return "".join(r.get("text", "") for r in t.get("runs") or [])
 
-          def is_short(vr, title):
+          def parse_item(kind, node):
+              """(videoId, title) を返す。動画として扱えないものは None を返す。"""
+              if kind == "lockupViewModel":
+                  ctype = node.get("contentType") or ""
+                  # 明示的に動画以外（Shorts・プレイリスト等）と分かるものは捨てる
+                  if ctype and "VIDEO" not in ctype:
+                      return None
+                  vid = node.get("contentId")
+                  title = text_of(
+                      (node.get("metadata") or {})
+                      .get("lockupMetadataViewModel", {})
+                      .get("title"))
+              else:
+                  vid = node.get("videoId")
+                  title = text_of(node.get("title"))
+                  blob = json.dumps(node.get("thumbnailOverlays", []), ensure_ascii=False)
+                  nav = json.dumps(node.get("navigationEndpoint", {}))
+                  if "SHORTS" in blob or "reelWatch" in nav:
+                      return None
+
+              if not vid or not title:
+                  return None
               if re.search(r"#shorts?\b", title, re.I):
-                  return True
-              blob = json.dumps(vr.get("thumbnailOverlays", []), ensure_ascii=False)
-              return "SHORTS" in blob or "reelWatch" in json.dumps(vr.get("navigationEndpoint", {}))
+                  return None
+              return vid, title.strip()
 
           def selected_tab(data):
               """「動画」タブ（選択中のタブ）の中身だけに絞る。
@@ -160,6 +193,29 @@ jobs:
                       return r["content"]
               return data
 
+          def dump_structure(scope, data):
+              """拾えなかったときに、次に何へ対応すべきかをログだけで判断できるようにする"""
+              counts = collections.Counter()
+
+              def count(n):
+                  if isinstance(n, dict):
+                      for k, v in n.items():
+                          if k.endswith(("Renderer", "ViewModel")):
+                              counts[k] += 1
+                          count(v)
+                  elif isinstance(n, list):
+                      for v in n:
+                          count(v)
+
+              count(scope)
+              print("--- 選択タブ内のレンダラー種別（上位25件）---")
+              for k, c in counts.most_common(25):
+                  print(f"    {k}: {c}")
+              ids = re.findall(r'"(?:videoId|contentId)":"([\w-]{11})"', json.dumps(data))
+              print(f"--- ページ全体の videoId/contentId 先頭5件（全{len(ids)}件）---")
+              for v in ids[:5]:
+                  print(f"    {v}")
+
           html = fetch(URL)
           sync_icon(html)   # 最新曲の取得結果に関係なく、アイコンは毎回そろえる
 
@@ -167,22 +223,26 @@ jobs:
           if data is None:
               sys.exit("ytInitialData が見つかりませんでした。YouTube側のHTML構造が変わった可能性があります。")
 
+          scope = selected_tab(data)
           picked = None
-          for vr in walk(selected_tab(data)):
-              title = title_of(vr).strip()
-              if not title or is_short(vr, title):
-                  continue
-              picked = {"videoId": vr["videoId"], "title": title}
-              break
+          for kind, node in walk_items(scope):
+              got = parse_item(kind, node)
+              if got:
+                  picked = {"videoId": got[0], "title": got[1], "via": kind}
+                  break
 
           if picked is None:
+              dump_structure(scope, data)
               sys.exit("動画タブから本編動画を1件も取り出せませんでした。")
+
+          print(f"取得元レンダラー: {picked['via']}")
 
           def thumb_url(vid):
               """maxresdefault が無い動画があるので、実在するほうを選ぶ"""
               maxres = f"https://i.ytimg.com/vi/{vid}/maxresdefault.jpg"
               try:
-                  req = urllib.request.Request(maxres, method="HEAD")
+                  req = urllib.request.Request(maxres, method="HEAD",
+                                               headers={"User-Agent": UA})
                   with urllib.request.urlopen(req, timeout=15) as res:
                       if res.status == 200:
                           return maxres
@@ -232,7 +292,10 @@ jobs:
           print(f"更新: {new['title']} ({new['videoId']})")
           PY
 
+      # 前の手順が失敗しても実行する。最新曲の解析に失敗しても、
+      # 取得できたアイコンだけは反映しておきたいため。
       - name: 変更があればコミットする
+        if: always()
         run: |
           set -euo pipefail
           # git status なら「変更あり」も「新規ファイル」も同じ判定で拾える
