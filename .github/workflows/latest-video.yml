@@ -4,6 +4,9 @@
 #   YouTubeの「動画」タブ(https://www.youtube.com/@pesu_/videos)のHTMLを取得し、
 #   一番上の動画のIDとタイトルを latest.json に書き込んでコミットする。
 #   Shortsは別タブなので「動画」タブからは本編だけが取れる（切り抜きの混入を防ぐ）。
+#   プレミア公開・配信予定の動画は「公開前でも」動画タブの先頭に並ぶため、
+#   既定では除外する（未公開曲が最新曲として出て、待機画面へ飛ぶのを防ぐ）。
+#   告知として先に出したい場合は INCLUDE_UPCOMING を "true" にする。
 #   あわせて index.html の og:image も同じサムネURLに書き換えるので、
 #   SNSにURLを貼ったときのサムネが常に最新曲になる（ogp.png を用意しなくていい）。
 #   さらに YouTubeチャンネルのアイコンを icon.png / icon.jpg として保存するので、
@@ -22,7 +25,9 @@ name: 最新曲を取得
 
 on:
   schedule:
-    - cron: "0 21 * * *" # UTC 21:00 = JST 翌6:00
+    # 2時間おき。プレミア公開の終了後、遅くとも2時間でサイトに反映される。
+    # 1日1回だと夜のプレミア公開が翌朝まで載らないため。
+    - cron: "0 */2 * * *"
   workflow_dispatch: # Actionsタブから手動実行するためのボタン
 
 permissions:
@@ -44,12 +49,17 @@ jobs:
           # YouTubeのチャンネルアイコンを自動で同期する。
           # 別のアイコンを手動で使いたくなったら "false" にする。
           AUTO_ICON: "true"
+          # プレミア公開・配信予定の動画を最新曲として扱うか。
+          # "false"（既定）= 公開済みの動画だけを見る
+          # "true"        = 公開前でも予約動画を最新曲として出す（告知向け）
+          INCLUDE_UPCOMING: "false"
         run: |
           python3 - <<'PY'
           import collections, json, os, re, sys, urllib.request, datetime
 
           URL = os.environ["CHANNEL_URL"]
           AUTO_ICON = os.environ.get("AUTO_ICON", "true").lower() == "true"
+          INCLUDE_UPCOMING = os.environ.get("INCLUDE_UPCOMING", "false").lower() == "true"
           OUT = "latest.json"
           HTML = "index.html"
           # 保存名は中身に合わせて決める（YouTubeはJPEGを返すこともPNGを返すこともある）
@@ -187,6 +197,34 @@ jobs:
                   return t["content"]
               return "".join(r.get("text", "") for r in t.get("runs") or [])
 
+          # プレミア公開・配信予定を示す文字列。日本語UIと英語UIの両方に備える。
+          UPCOMING_WORDS = (
+              "プレミア公開", "配信予定", "公開予定", "待機中",
+              "Premieres", "premieres", "Scheduled", "スケジュール",
+              "UPCOMING", "LIVE_UPCOMING", "BADGE_STYLE_TYPE_LIVE_NOW",
+          )
+
+          def is_upcoming(kind, node):
+              """まだ公開されていない動画（プレミア公開・配信予定）かどうか。
+              判定に使う範囲をバッジとメタデータに限定して、誤検出を避ける。"""
+              if kind == "lockupViewModel":
+                  scope = {
+                      "image": node.get("contentImage"),
+                      "meta": node.get("metadata"),
+                      "badges": node.get("badges"),
+                  }
+              else:
+                  # videoRenderer 系は upcomingEventData があれば確定
+                  if node.get("upcomingEventData"):
+                      return True
+                  scope = {
+                      "overlays": node.get("thumbnailOverlays"),
+                      "badges": node.get("badges"),
+                      "published": node.get("publishedTimeText"),
+                  }
+              blob = json.dumps(scope, ensure_ascii=False)
+              return any(w in blob for w in UPCOMING_WORDS)
+
           def parse_item(kind, node):
               """(videoId, title) を返す。動画として扱えないものは None を返す。"""
               if kind == "lockupViewModel":
@@ -257,11 +295,20 @@ jobs:
 
           scope = selected_tab(data)
           picked = None
+          skipped_upcoming = []
           for kind, node in walk_items(scope):
               got = parse_item(kind, node)
-              if got:
-                  picked = {"videoId": got[0], "title": got[1], "via": kind}
-                  break
+              if not got:
+                  continue
+              if not INCLUDE_UPCOMING and is_upcoming(kind, node):
+                  # プレミア公開の予約が先頭に並んでいる間は、その次（公開済み）を採用する
+                  skipped_upcoming.append(got[1])
+                  continue
+              picked = {"videoId": got[0], "title": got[1], "via": kind}
+              break
+
+          for t in skipped_upcoming:
+              print(f"プレミア公開・配信予定のため除外: {t}")
 
           if picked is None:
               dump_structure(scope, data)
