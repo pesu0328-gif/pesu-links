@@ -6,8 +6,9 @@
 #   Shortsは別タブなので「動画」タブからは本編だけが取れる（切り抜きの混入を防ぐ）。
 #   あわせて index.html の og:image も同じサムネURLに書き換えるので、
 #   SNSにURLを貼ったときのサムネが常に最新曲になる（ogp.png を用意しなくていい）。
-#   さらに YouTubeチャンネルのアイコンを icon.png として保存するので、
+#   さらに YouTubeチャンネルのアイコンを icon.png / icon.jpg として保存するので、
 #   プロフィール画像も手で用意しなくていい（AUTO_ICON: "false" で止められる）。
+#   拡張子は中身の先頭バイトから判定し、index.html の参照もあわせて書き換える。
 #   取得や解析に失敗したときは latest.json を書き換えずにジョブを失敗させる。
 #   → サイトは前回の内容のまま生き続け、GitHubから失敗通知メールが届く。
 #
@@ -40,7 +41,7 @@ jobs:
       - name: 最新曲とチャンネルアイコンを取得して反映する
         env:
           CHANNEL_URL: https://www.youtube.com/@pesu_/videos
-          # YouTubeのチャンネルアイコンを icon.png に自動で同期する。
+          # YouTubeのチャンネルアイコンを自動で同期する。
           # 別のアイコンを手動で使いたくなったら "false" にする。
           AUTO_ICON: "true"
         run: |
@@ -51,7 +52,8 @@ jobs:
           AUTO_ICON = os.environ.get("AUTO_ICON", "true").lower() == "true"
           OUT = "latest.json"
           HTML = "index.html"
-          ICON = "icon.png"
+          # 保存名は中身に合わせて決める（YouTubeはJPEGを返すこともPNGを返すこともある）
+          ICON_NAMES = ("icon.png", "icon.jpg", "icon.webp")
 
           UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -70,15 +72,26 @@ jobs:
           def fetch(url):
               return fetch_bytes(url).decode("utf-8", "replace")
 
+          def icon_name(data):
+              """中身の先頭バイトから、正しい拡張子のファイル名を決める。
+              JPEGを icon.png という名前で置くとContent-Typeが実体と食い違うため。"""
+              if data.startswith(b"\x89PNG"):
+                  return "icon.png"
+              if data.startswith(b"\xff\xd8"):
+                  return "icon.jpg"
+              if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+                  return "icon.webp"
+              return None
+
           def sync_icon(html):
               """チャンネルページの og:image はチャンネルアイコン。
-              これを icon.png として保存し、プロフィール画像を手動管理から外す。
-              失敗しても既存の icon.png はそのままにして、処理は続ける。"""
+              これを保存し、プロフィール画像を手動管理から外す。
+              失敗しても既存のアイコンはそのままにして、処理は続ける。"""
               if not AUTO_ICON:
                   return
               m = re.search(r'<meta property="og:image" content="([^"]+)"', html)
               if not m:
-                  print("チャンネルアイコンのURLが見つかりません。icon.png は据え置きます。")
+                  print("チャンネルアイコンのURLが見つかりません。アイコンは据え置きます。")
                   return
               # yt3.googleusercontent.com/...=s160-c-k-... のサイズ指定を大きくする
               url = re.sub(r"=s\d+", "=s512", m.group(1))
@@ -87,19 +100,38 @@ jobs:
               except Exception as e:
                   print(f"チャンネルアイコンを取得できませんでした: {e}")
                   return
-              if len(data) < 1000 or not data.startswith((b"\x89PNG", b"\xff\xd8", b"RIFF")):
+
+              target = icon_name(data)
+              if len(data) < 1000 or target is None:
                   print("取得したデータが画像として不正なので無視します。")
                   return
+
               try:
-                  with open(ICON, "rb") as f:
+                  with open(target, "rb") as f:
                       if f.read() == data:
                           print("アイコンは変更なし")
                           return
               except OSError:
                   pass
-              with open(ICON, "wb") as f:
+
+              with open(target, "wb") as f:
                   f.write(data)
-              print(f"アイコンを更新: {url} ({len(data)} bytes)")
+              # 前回と拡張子が変わったときに古いファイルが残らないようにする
+              for other in ICON_NAMES:
+                  if other != target and os.path.exists(other):
+                      os.remove(other)
+                      print(f"古い {other} を削除")
+
+              # index.html 側の参照（favicon・apple-touch-icon・アバター）も合わせる
+              with open(HTML, encoding="utf-8") as f:
+                  src = f.read()
+              patched = re.sub(r"\bicon\.(?:png|jpe?g|webp)\b", target, src)
+              if patched != src:
+                  with open(HTML, "w", encoding="utf-8") as f:
+                      f.write(patched)
+                  print(f"index.html の参照を {target} に更新")
+
+              print(f"アイコンを更新: {url} ({len(data)} bytes → {target})")
 
           def extract_json(html, marker):
               """marker の直後から始まる JSON オブジェクトを、括弧を数えて切り出す。
@@ -299,14 +331,14 @@ jobs:
         run: |
           set -euo pipefail
           # git status なら「変更あり」も「新規ファイル」も同じ判定で拾える
-          if [ -z "$(git status --porcelain -- latest.json index.html icon.png)" ]; then
+          # アイコンの拡張子が変わることがあるので、パスを列挙せず作業ツリー全体を見る。
+          # このリポジトリでワークフローが触るのは latest.json / index.html / icon.* だけ。
+          if [ -z "$(git status --porcelain)" ]; then
             echo "コミットするものはありません"
             exit 0
           fi
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- latest.json index.html
-          # AUTO_ICON が false のときは icon.png が存在しないことがある
-          if [ -e icon.png ]; then git add -- icon.png; fi
+          git add -A
           git commit -m "最新曲とアイコンを更新"
           git push
