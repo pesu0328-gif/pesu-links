@@ -107,9 +107,10 @@ a{ color:inherit; text-decoration:none; }
   z-index:1;
   pointer-events:none;
   background:
-    radial-gradient(60rem 30rem at 50% -10rem, rgba(138,102,200,.26), transparent 64%),
-    radial-gradient(46rem 46rem at 50% 118%, rgba(201,162,74,.08), transparent 60%),
-    radial-gradient(130% 95% at 50% 36%, rgba(8,8,10,.34) 30%, rgba(4,4,6,.78) 100%);
+    radial-gradient(38rem 28rem at 14% 4%,  rgba(140,102,205,.26), transparent 66%),
+    radial-gradient(34rem 30rem at 88% 82%, rgba(196,74,58,.16),  transparent 66%),
+    radial-gradient(56rem 26rem at 50% -8rem, rgba(138,102,200,.20), transparent 64%),
+    radial-gradient(130% 95% at 50% 36%, rgba(8,8,10,.30) 28%, rgba(4,4,6,.80) 100%);
 }
 
 /* ---------- 言語切替 ---------- */
@@ -123,6 +124,8 @@ a{ color:inherit; text-decoration:none; }
 }
 .langbar__inner{
   display:flex;
+  opacity:.5;
+  transition:opacity .3s var(--ease);
   gap:1px;
   background:var(--line);
   border:1px solid var(--line);
@@ -143,6 +146,8 @@ a{ color:inherit; text-decoration:none; }
   cursor:pointer;
   transition:color .25s var(--ease), background .25s var(--ease);
 }
+.langbar__inner:hover,
+.langbar__inner:focus-within{ opacity:1; }
 .langbtn:hover{ color:var(--fg-dim); }
 .langbtn[aria-current="true"]{ color:var(--fg); background:var(--bg-lift); }
 
@@ -162,17 +167,17 @@ a{ color:inherit; text-decoration:none; }
 
 .hero{
   text-align:center;
-  padding:.25rem 0 1.9rem;   /* ヒーローは詰め、最新曲の手前だけ大きく空ける */
+  padding:.25rem 0 1.6rem;   /* ヒーローは詰め、最新曲の手前だけ大きく空ける */
 }
 
 .avatar{
   position:relative;
-  width:80px;
-  height:80px;
-  margin:0 auto 1rem;
+  width:108px;
+  height:108px;
+  margin:0 auto 1.05rem;
   border-radius:50%;
   background:var(--bg-lift);
-  box-shadow:0 0 0 1px var(--line), 0 0 46px rgba(148,116,200,.16);
+  box-shadow:0 0 0 1px rgba(255,255,255,.16), 0 0 56px rgba(148,116,200,.22);
   overflow:hidden;
 }
 .avatar img{
@@ -187,7 +192,7 @@ a{ color:inherit; text-decoration:none; }
   display:none;
   place-items:center;
   font-family:var(--mincho);
-  font-size:2.1rem;
+  font-size:2.7rem;
   color:var(--fg-dim);
 }
 /* icon.png がまだ無いときは頭文字を出す（画像が届く前でもサイトが成立する） */
@@ -213,7 +218,7 @@ a{ color:inherit; text-decoration:none; }
   text-transform:lowercase;
 }
 .tagline{
-  margin:.9rem auto 0;
+  margin:.8rem auto 0;
   max-width:26rem;
   font-size:.8rem;
   line-height:1.95;
@@ -270,13 +275,46 @@ a{ color:inherit; text-decoration:none; }
 .latest__thumb img{
   width:100%; height:100%;
   object-fit:cover;
-  filter:saturate(.72) contrast(1.06) brightness(.86);
-  transition:filter .4s var(--ease);
+  filter:saturate(.82) contrast(1.04) brightness(.9);
+  transition:filter .45s var(--ease), transform .55s var(--ease);
 }
-.latest:hover .latest__thumb img{ filter:saturate(.95) contrast(1.02) brightness(1); }
+.latest:hover .latest__thumb img{
+  filter:saturate(1) contrast(1.02) brightness(.74);
+  transform:scale(1.035);
+}
+
+/* 再生マーク。hover が無いモバイルでも「動画である」ことが伝わるよう常時出す */
+.latest__play{
+  position:absolute;
+  left:50%; top:42%;
+  z-index:2;
+  transform:translate(-50%,-50%);
+  display:grid;
+  place-items:center;
+  width:3.5rem; height:3.5rem;
+  border-radius:50%;
+  border:1px solid rgba(255,255,255,.45);
+  background:rgba(8,6,12,.34);
+  backdrop-filter:blur(3px);
+  -webkit-backdrop-filter:blur(3px);
+  transition:transform .35s var(--ease), background .35s var(--ease), border-color .35s var(--ease);
+}
+.latest__play::before{
+  content:"";
+  margin-left:.2rem;
+  border-left:.78rem solid rgba(255,255,255,.94);
+  border-top:.46rem solid transparent;
+  border-bottom:.46rem solid transparent;
+}
+.latest:hover .latest__play{
+  transform:translate(-50%,-50%) scale(1.1);
+  background:rgba(216,56,42,.6);
+  border-color:rgba(255,255,255,.85);
+}
 .latest__thumb::after{  /* サムネ下端をカードに溶かす */
   content:"";
   position:absolute; inset:0;
+  z-index:1;
   background:linear-gradient(180deg, transparent 42%, rgba(8,8,10,.92) 100%);
 }
 
@@ -284,9 +322,9 @@ a{ color:inherit; text-decoration:none; }
   position:relative;
   max-width:var(--wrap);
   margin:0 auto;
-  padding:1.05rem 1.25rem 1.2rem;
+  padding:.95rem 1.25rem 1.15rem;
 }
-.latest__title{ font-size:1.24rem; }
+.latest__title{ font-size:1.5rem; line-height:1.45; }
 
 @media (min-width:34rem){
   .latest{
@@ -298,15 +336,16 @@ a{ color:inherit; text-decoration:none; }
     border-left:1px solid var(--line);
     border-right:1px solid var(--line);
   }
-  .latest__body{ padding:1.1rem 1.25rem 1.25rem; }
-  .latest__title{ font-size:1.12rem; }
+  .latest__body{ padding:1.15rem 1.25rem 1.3rem; }
+  .latest__title{ font-size:1.34rem; }
 }
 .eyebrow{
   display:block;
-  font-size:.6rem;
-  letter-spacing:.32em;
-  color:var(--accent-yt);
-  margin-bottom:.5rem;
+  font-size:.62rem;
+  font-weight:500;
+  letter-spacing:.34em;
+  color:#e8564a;
+  margin-bottom:.55rem;
 }
 .latest__title{
   display:block;
@@ -315,14 +354,25 @@ a{ color:inherit; text-decoration:none; }
   font-size:1.12rem;
   line-height:1.6;
 }
+/* 説明ではなく押せるものとして見せる */
 .latest__cta{
-  display:block;
-  margin-top:.7rem;
-  font-size:.7rem;
-  letter-spacing:.14em;
-  color:var(--fg-faint);
+  display:inline-flex;
+  align-items:center;
+  gap:.5em;
+  margin-top:.85rem;
+  padding:.5rem .95rem;
+  border:1px solid rgba(255,255,255,.2);
+  border-radius:2px;
+  font-size:.72rem;
+  letter-spacing:.1em;
+  color:var(--fg);
+  transition:border-color .3s var(--ease), background .3s var(--ease);
 }
-.latest__cta::after{ content:" →"; }
+.latest__cta::after{ content:"→"; }
+.latest:hover .latest__cta{
+  border-color:rgba(255,255,255,.45);
+  background:rgba(255,255,255,.06);
+}
 
 /* ---------- 主導線（YouTube / 支援）---------- */
 
