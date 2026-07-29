@@ -397,16 +397,21 @@ jobs:
               seen, out = set(), []
               collect(scope, seen, out)
 
-              m = re.search(r'"INNERTUBE_API_KEY":"([\w-]+)"', html)
-              ctx = extract_json(html, "ytcfg.set")
-              client = None
-              if isinstance(ctx, dict):
-                  client = (ctx.get("INNERTUBE_CONTEXT") or {}).get("client")
-              if not m or not client:
+              # ytcfg は JS の呼び出し文なので JSON として読まず、必要な2つだけ正規表現で取る。
+              # extract_json は ytInitialData 専用（失敗時にジョブを落とす）なので使わない。
+              m_key = re.search(r'"INNERTUBE_API_KEY":"([\w-]+)"', html)
+              m_ver = re.search(r'"INNERTUBE_CLIENT_VERSION":"([\d.]+)"', html)
+              if not m_key or not m_ver:
                   print("continuation に必要な情報が取れないので、1ページ目だけで作品一覧を作ります")
                   return out
 
-              api = f"https://www.youtube.com/youtubei/v1/browse?key={m.group(1)}"
+              client = {
+                  "clientName": "WEB",
+                  "clientVersion": m_ver.group(1),
+                  "hl": "ja",
+                  "gl": "JP",
+              }
+              api = f"https://www.youtube.com/youtubei/v1/browse?key={m_key.group(1)}"
               token = continuation_token(scope)
               for page in range(MAX_PAGES):
                   if not token or len(out) >= MAX_VIDEOS:
@@ -421,7 +426,12 @@ jobs:
                   token = continuation_token(res)
               return out
 
-          videos = build_video_list(html, data, scope)
+          # 作品一覧はあくまで付随機能。ここで何が起きても最新曲の更新は止めない。
+          try:
+              videos = build_video_list(html, data, scope)
+          except Exception as e:
+              print(f"作品一覧の取得に失敗したので据え置きます: {e}")
+              videos = []
           print(f"作品一覧: {len(videos)} 件")
 
           if videos:
