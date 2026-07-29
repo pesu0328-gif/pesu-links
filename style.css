@@ -670,6 +670,7 @@ a{ color:inherit; text-decoration:none; }
   .latest{ grid-column:2; grid-row:1; margin-bottom:1rem; }
   .ctas  { grid-column:2; margin-bottom:.85rem; }
   .links { grid-column:2; }
+  .works { grid-column:2; }
 
   /* フッターは両カラムをまたいで下に敷く */
   .foot{ grid-column:1 / -1; margin-top:4rem; }
@@ -712,4 +713,120 @@ a{ color:inherit; text-decoration:none; }
   .link__mark{ width:2.7rem; height:2.7rem; font-size:.78rem; }
   .link__label{ font-size:1.2rem; }
   .link__sub{ font-size:.84rem; }
+}
+
+
+/* ---------- これまでの作品 ---------- */
+
+.works{ margin-top:2.6rem; }
+
+.works__head{
+  margin:0 0 .9rem;
+  font-size:.6rem;
+  font-weight:400;
+  letter-spacing:.32em;
+  text-indent:.32em;
+  color:var(--fg-faint);
+}
+
+.works__grid{
+  display:grid;
+  grid-template-columns:repeat(2, 1fr);
+  gap:.5rem;
+  /* 既定の stretch だと、開いたタイルの高さに合わせて同じ行の他が伸び、
+     サムネの下に黒い空白ができてしまう */
+  align-items:start;
+}
+
+.work{
+  position:relative;
+  display:block;
+  border:1px solid var(--line);
+  border-radius:2px;
+  overflow:hidden;
+  background:var(--bg-lift);
+  transition:border-color .3s var(--ease), transform .3s var(--ease);
+}
+.work:hover{ border-color:var(--line-hi); transform:translateY(-2px); }
+
+.work__img{
+  width:100%;
+  /* img の height 属性が指定扱いになると aspect-ratio が効かないので auto に戻す */
+  height:auto;
+  aspect-ratio:16/9;
+  object-fit:cover;
+  filter:saturate(.7) brightness(.72);
+  transition:filter .35s var(--ease);
+}
+.work:hover .work__img{ filter:saturate(.95) brightness(.88); }
+
+/* 閉じている間はタイトルを持たない。開いたときだけ下に出す */
+.work__body{
+  display:none;
+  padding:.75rem .85rem .9rem;
+}
+.work__title{
+  display:block;
+  font-family:var(--mincho);
+  font-weight:600;
+  font-size:.95rem;
+  line-height:1.55;
+}
+.work__hint{
+  display:block;
+  margin-top:.45rem;
+  font-size:.66rem;
+  letter-spacing:.1em;
+  color:var(--accent-yt);
+}
+.work__hint::after{ content:" →"; }
+
+/* 1回目のクリックで広げる。
+   2列のスマホでは全幅、列数が多い画面では2列ぶんに留める
+   （6列で全幅にすると高さ800px超になって行き過ぎるため）。 */
+.work.is-open{
+  grid-column:1 / -1;
+  border-color:var(--line-hi);
+  transform:none;
+}
+.work.is-open .work__img{ filter:saturate(1) brightness(.95); }
+.work.is-open .work__body{ display:block; }
+
+.works__more{
+  display:block;
+  width:100%;
+  margin-top:.75rem;
+  padding:.85rem 1rem;
+  appearance:none;
+  border:1px solid var(--line);
+  border-radius:2px;
+  background:transparent;
+  color:var(--fg-dim);
+  font-family:var(--gothic);
+  font-size:.76rem;
+  letter-spacing:.1em;
+  cursor:pointer;
+  transition:border-color .3s var(--ease), color .3s var(--ease), background .3s var(--ease);
+}
+.works__more:hover{
+  border-color:var(--line-hi);
+  color:var(--fg);
+  background:rgba(255,255,255,.03);
+}
+
+@media (min-width:45rem){
+  .works__grid{ grid-template-columns:repeat(4, 1fr); }
+  .work.is-open{ grid-column:span 2; }
+  .work__title{ font-size:1.05rem; }
+}
+
+@media (min-width:64rem){
+  .works__grid{ grid-template-columns:repeat(5, 1fr); }
+}
+@media (min-width:100rem){
+  .works__grid{ grid-template-columns:repeat(6, 1fr); gap:.65rem; }
+  .works__head{ font-size:.72rem; }
+  .work__title{ font-size:1.25rem; }
+  .work__hint{ font-size:.78rem; }
+  .works__more{ font-size:.86rem; padding:1rem; }
 }

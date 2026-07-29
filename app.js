@@ -173,6 +173,95 @@
     probe.src = url;
   }
 
+  /* ---------- これまでの作品 ---------- */
+
+  const WORKS_STEP = 24;   // 1回に出す件数
+  let worksShown = 0;
+
+  /** サムネは mqdefault(320x180)。一覧では十分な解像度で、hqdefault より軽い */
+  const workThumb = (id) => `https://i.ytimg.com/vi/${id}/mqdefault.jpg`;
+
+  function renderWorks(videos, strings) {
+    const section = $("#works");
+    const grid = $("#worksGrid");
+    const more = $("#worksMore");
+    const items = (videos && videos.items) || [];
+
+    if (items.length === 0) {
+      section.hidden = true;
+      return;
+    }
+    section.hidden = false;
+    grid.textContent = "";
+    worksShown = 0;
+
+    const appendBatch = () => {
+      const slice = items.slice(worksShown, worksShown + WORKS_STEP);
+      for (const v of slice) {
+        grid.append(buildWork(v, strings));
+      }
+      worksShown += slice.length;
+      const rest = items.length - worksShown;
+      more.hidden = rest <= 0;
+      more.textContent = `${strings.worksMore || ""}（残り${rest}）`;
+    };
+
+    appendBatch();
+    more.onclick = appendBatch;
+  }
+
+  function buildWork(v, strings) {
+    // <a> のままにして、2回目のクリックや Ctrl+クリックが普通のリンクとして働くようにする
+    const a = document.createElement("a");
+    a.className = "work";
+    a.href = `https://www.youtube.com/watch?v=${v.videoId}`;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.title = v.title || "";
+
+    const img = document.createElement("img");
+    img.className = "work__img";
+    img.src = workThumb(v.videoId);
+    img.alt = v.title || "";
+    img.loading = "lazy";
+    img.decoding = "async";
+    img.width = 320;
+    img.height = 180;
+
+    const body = document.createElement("span");
+    body.className = "work__body";
+
+    const title = document.createElement("span");
+    title.className = "work__title";
+    title.textContent = v.title || "";
+
+    const hint = document.createElement("span");
+    hint.className = "work__hint";
+    hint.textContent = strings.worksHint || "";
+
+    body.append(title, hint);
+    a.append(img, body);
+
+    a.addEventListener("click", (e) => {
+      // 修飾キー付きは通常のリンク動作（新しいタブ等）に任せる
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      // 2回目のクリックはそのまま YouTube へ
+      if (a.classList.contains("is-open")) return;
+      e.preventDefault();
+      closeWorks();
+      a.classList.add("is-open");
+      a.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    });
+
+    return a;
+  }
+
+  function closeWorks() {
+    for (const el of document.querySelectorAll(".work.is-open")) {
+      el.classList.remove("is-open");
+    }
+  }
+
   function applyStrings(strings, lang) {
     document.documentElement.lang = strings.htmlLang || lang;
     document.documentElement.dataset.lang = lang;
@@ -219,20 +308,31 @@
       $("#avatar").classList.add("is-empty");
     }
 
-    const [links, i18n, latest] = await Promise.all([
+    const [links, i18n, latest, videos] = await Promise.all([
       loadJson("links.json", { ctas: [], groups: [] }),
       loadJson("i18n.json", {}),
       loadJson("latest.json", null),
+      loadJson("videos.json", null),
     ]);
 
     let lang = detectLang();
 
     const draw = () => {
-      applyStrings(i18n[lang] || i18n.ja || {}, lang);
+      const strings = i18n[lang] || i18n.ja || {};
+      applyStrings(strings, lang);
       renderCtas(links.ctas, lang);
       renderGroups(links.groups, lang);
       renderLatest(latest, lang);
+      renderWorks(videos, strings);
     };
+
+    // 開いたサムネの外側を触ったら閉じる
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest(".work")) closeWorks();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeWorks();
+    });
 
     draw();
 

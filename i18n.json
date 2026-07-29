@@ -6,7 +6,10 @@
     "latestLabel": "最新曲",
     "latestCta": "YouTubeで観る",
     "footNote": "無断転載・二次配布はご遠慮ください。",
-    "metaDescription": "低音で感情ぶん殴る、歌い手ペスのリンク。最新曲・YouTube・FANBOX。"
+    "metaDescription": "低音で感情ぶん殴る、歌い手ペスのリンク。最新曲・YouTube・FANBOX。",
+    "worksHead": "これまでの作品",
+    "worksMore": "もっと見る",
+    "worksHint": "もう一度タップでYouTubeへ"
   },
   "en": {
     "htmlLang": "en",
@@ -15,7 +18,10 @@
     "latestLabel": "LATEST COVER",
     "latestCta": "Watch on YouTube",
     "footNote": "Please do not repost or redistribute without permission.",
-    "metaDescription": "pesu — a Japanese vocalist covering Vocaloid songs with a deep low voice. Latest release, YouTube and FANBOX."
+    "metaDescription": "pesu — a Japanese vocalist covering Vocaloid songs with a deep low voice. Latest release, YouTube and FANBOX.",
+    "worksHead": "ALL COVERS",
+    "worksMore": "Show more",
+    "worksHint": "Tap again to open YouTube"
   },
   "zh": {
     "htmlLang": "zh",
@@ -24,6 +30,9 @@
     "latestLabel": "最新曲",
     "latestCta": "在YouTube观看",
     "footNote": "请勿未经许可转载或二次分发。",
-    "metaDescription": "日本翻唱歌手ペス（pesu）。最新作品、YouTube、FANBOX。"
+    "metaDescription": "日本翻唱歌手ペス（pesu）。最新作品、YouTube、FANBOX。",
+    "worksHead": "全部作品",
+    "worksMore": "查看更多",
+    "worksHint": "再次点击前往YouTube"
   }
 }

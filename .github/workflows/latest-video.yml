@@ -12,6 +12,8 @@
 #   さらに YouTubeチャンネルのアイコンを icon.png / icon.jpg として保存するので、
 #   プロフィール画像も手で用意しなくていい（AUTO_ICON: "false" で止められる）。
 #   拡張子は中身の先頭バイトから判定し、index.html の参照もあわせて書き換える。
+#   さらに、動画タブの全動画を videos.json に書き出す（サイトの作品一覧用）。
+#   1ページ目は約30件なので、continuation を辿って残りを取る。
 #   取得や解析に失敗したときは latest.json を書き換えずにジョブを失敗させる。
 #   → サイトは前回の内容のまま生き続け、GitHubから失敗通知メールが届く。
 #
@@ -61,6 +63,7 @@ jobs:
           AUTO_ICON = os.environ.get("AUTO_ICON", "true").lower() == "true"
           INCLUDE_UPCOMING = os.environ.get("INCLUDE_UPCOMING", "false").lower() == "true"
           OUT = "latest.json"
+          VIDEOS = "videos.json"
           HTML = "index.html"
           # 保存名は中身に合わせて決める（YouTubeはJPEGを返すこともPNGを返すこともある）
           ICON_NAMES = ("icon.png", "icon.jpg", "icon.webp")
@@ -81,6 +84,17 @@ jobs:
 
           def fetch(url):
               return fetch_bytes(url).decode("utf-8", "replace")
+
+          def post_json(url, payload):
+              body = json.dumps(payload).encode()
+              req = urllib.request.Request(url, data=body, headers={
+                  "User-Agent": UA,
+                  "Content-Type": "application/json",
+                  "Accept-Language": "ja,en;q=0.8",
+                  "Cookie": "CONSENT=YES+cb; SOCS=CAI",
+              })
+              with urllib.request.urlopen(req, timeout=30) as res:
+                  return json.loads(res.read().decode("utf-8", "replace"))
 
           def icon_name(data):
               """中身の先頭バイトから、正しい拡張子のファイル名を決める。
@@ -328,6 +342,112 @@ jobs:
               except Exception as e:
                   print(f"maxresdefault が取れないので hqdefault を使う: {e}")
               return f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg"
+
+          # ---------- 作品一覧（videos.json）----------
+
+          MAX_PAGES = 40          # 1ページ約30件。暴走しないよう上限を置く
+          MAX_VIDEOS = 1000
+
+          def find_first(node, key):
+              if isinstance(node, dict):
+                  if key in node:
+                      return node[key]
+                  for v in node.values():
+                      r = find_first(v, key)
+                      if r is not None:
+                          return r
+              elif isinstance(node, list):
+                  for v in node:
+                      r = find_first(v, key)
+                      if r is not None:
+                          return r
+              return None
+
+          def collect(scope_node, seen, out):
+              """1ページ分の動画を out に足す。戻り値は追加できたかどうか"""
+              added = 0
+              for kind, node in walk_items(scope_node):
+                  got = parse_item(kind, node)
+                  if not got:
+                      continue
+                  vid, title = got
+                  if vid in seen:
+                      continue
+                  if not INCLUDE_UPCOMING and is_upcoming(kind, node):
+                      continue
+                  seen.add(vid)
+                  out.append({"videoId": vid, "title": title})
+                  added += 1
+              return added
+
+          def continuation_token(node):
+              tok = find_first(node, "continuationCommand")
+              if isinstance(tok, dict) and tok.get("token"):
+                  return tok["token"]
+              tok = find_first(node, "continuationEndpoint")
+              if isinstance(tok, dict):
+                  cmd = (tok.get("continuationCommand") or {})
+                  if cmd.get("token"):
+                      return cmd["token"]
+              return None
+
+          def build_video_list(html, data, scope):
+              """動画タブの全動画を新しい順で返す。
+              continuation が辿れなくなった時点で打ち切り、取れたぶんだけ返す。"""
+              seen, out = set(), []
+              collect(scope, seen, out)
+
+              m = re.search(r'"INNERTUBE_API_KEY":"([\w-]+)"', html)
+              ctx = extract_json(html, "ytcfg.set")
+              client = None
+              if isinstance(ctx, dict):
+                  client = (ctx.get("INNERTUBE_CONTEXT") or {}).get("client")
+              if not m or not client:
+                  print("continuation に必要な情報が取れないので、1ページ目だけで作品一覧を作ります")
+                  return out
+
+              api = f"https://www.youtube.com/youtubei/v1/browse?key={m.group(1)}"
+              token = continuation_token(scope)
+              for page in range(MAX_PAGES):
+                  if not token or len(out) >= MAX_VIDEOS:
+                      break
+                  try:
+                      res = post_json(api, {"context": {"client": client}, "continuation": token})
+                  except Exception as e:
+                      print(f"continuation の取得に失敗（{page + 2}ページ目）: {e}")
+                      break
+                  if collect(res, seen, out) == 0:
+                      break
+                  token = continuation_token(res)
+              return out
+
+          videos = build_video_list(html, data, scope)
+          print(f"作品一覧: {len(videos)} 件")
+
+          if videos:
+              payload = {
+                  "count": len(videos),
+                  "updatedAt": datetime.datetime.now(datetime.timezone.utc)
+                                  .strftime("%Y-%m-%dT%H:%M:%SZ"),
+                  "items": videos,
+              }
+              try:
+                  with open(VIDEOS, encoding="utf-8") as f:
+                      prev = json.load(f)
+              except (OSError, json.JSONDecodeError):
+                  prev = {}
+              # updatedAt だけの差分でコミットが積み上がらないよう、中身で比較する
+              if prev.get("items") != videos:
+                  with open(VIDEOS, "w", encoding="utf-8") as f:
+                      json.dump(payload, f, ensure_ascii=False, indent=1)
+                      f.write("\n")
+                  print(f"videos.json を更新（{len(videos)} 件）")
+              else:
+                  print("作品一覧は変更なし")
+          else:
+              print("作品一覧が空だったので videos.json は据え置きます")
+
+          # ---------- 最新曲（latest.json）----------
 
           new = {
               "videoId": picked["videoId"],
