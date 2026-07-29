@@ -181,11 +181,14 @@
   /** サムネは mqdefault(320x180)。一覧では十分な解像度で、hqdefault より軽い */
   const workThumb = (id) => `https://i.ytimg.com/vi/${id}/mqdefault.jpg`;
 
-  function renderWorks(videos, strings) {
+  function renderWorks(videos, strings, latest) {
     const section = $("#works");
     const grid = $("#worksGrid");
     const more = $("#worksMore");
-    const items = (videos && videos.items) || [];
+    // 最新曲は上のカードに出ているので、一覧からは外して重複を避ける。
+    // videos.json 側は全作品の記録として残し、表示のときだけ除く。
+    const latestId = (latest && latest.videoId) || null;
+    const items = ((videos && videos.items) || []).filter((v) => v.videoId !== latestId);
 
     if (items.length === 0) {
       section.hidden = true;
@@ -323,7 +326,7 @@
       renderCtas(links.ctas, lang);
       renderGroups(links.groups, lang);
       renderLatest(latest, lang);
-      renderWorks(videos, strings);
+      renderWorks(videos, strings, latest);
     };
 
     // 開いたサムネの外側を触ったら閉じる
