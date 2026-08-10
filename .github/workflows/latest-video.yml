@@ -27,9 +27,10 @@ name: 最新曲を取得
 
 on:
   schedule:
-    # 2時間おき。プレミア公開の終了後、遅くとも2時間でサイトに反映される。
-    # 1日1回だと夜のプレミア公開が翌朝まで載らないため。
-    - cron: "0 */2 * * *"
+    # 30分おき。毎時 :00 はGitHub側が最も混む時刻で、実際に21:00と23:00の枠が
+    # 続けてスキップされたため、混雑を避けて :13 と :43 に置いている。
+    # 公開リポジトリのActionsは無料枠が無制限なので、頻度を上げても費用は増えない。
+    - cron: "13,43 * * * *"
   workflow_dispatch: # Actionsタブから手動実行するためのボタン
 
 permissions:
@@ -435,23 +436,42 @@ jobs:
           print(f"作品一覧: {len(videos)} 件")
 
           if videos:
-              payload = {
-                  "count": len(videos),
-                  "updatedAt": datetime.datetime.now(datetime.timezone.utc)
-                                  .strftime("%Y-%m-%dT%H:%M:%SZ"),
-                  "items": videos,
-              }
               try:
                   with open(VIDEOS, encoding="utf-8") as f:
                       prev = json.load(f)
               except (OSError, json.JSONDecodeError):
                   prev = {}
+              prev_items = prev.get("items") if isinstance(prev, dict) else None
+              prev_items = prev_items if isinstance(prev_items, list) else []
+
+              # continuation が途中で切れると今回のぶんだけ極端に少なくなる。
+              # そのまま書くと過去の記録を消してしまうので、前回ぶんを後ろに継ぎ足す。
+              # 今回取れたものが先頭に来るので、新しい順は保たれる。
+              merged = list(videos)
+              seen = {v["videoId"] for v in merged}
+              restored = 0
+              for v in prev_items:
+                  vid = v.get("videoId")
+                  if vid and vid not in seen:
+                      merged.append(v)
+                      seen.add(vid)
+                      restored += 1
+              if restored:
+                  print(f"今回取得できなかった {restored} 件は前回の記録から引き継ぎました "
+                        f"（今回 {len(videos)} 件 → 合計 {len(merged)} 件）")
+
+              payload = {
+                  "count": len(merged),
+                  "updatedAt": datetime.datetime.now(datetime.timezone.utc)
+                                  .strftime("%Y-%m-%dT%H:%M:%SZ"),
+                  "items": merged,
+              }
               # updatedAt だけの差分でコミットが積み上がらないよう、中身で比較する
-              if prev.get("items") != videos:
+              if prev_items != merged:
                   with open(VIDEOS, "w", encoding="utf-8") as f:
                       json.dump(payload, f, ensure_ascii=False, indent=1)
                       f.write("\n")
-                  print(f"videos.json を更新（{len(videos)} 件）")
+                  print(f"videos.json を更新（{len(merged)} 件）")
               else:
                   print("作品一覧は変更なし")
           else:
