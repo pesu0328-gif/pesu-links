@@ -26,7 +26,7 @@
         "zh": "FANBOX"
       },
       "sub": {
-        "ja": "制作を支える",
+        "ja": "表では出さない“歌の裏側”",
         "en": "Support the work",
         "zh": "支持创作"
       }
@@ -72,23 +72,8 @@
           }
         },
         {
-          "mark": "TT",
-          "url": "",
-          "accent": "#4fd2d6",
-          "label": {
-            "ja": "TikTok",
-            "en": "TikTok",
-            "zh": "TikTok"
-          },
-          "sub": {
-            "ja": "切り抜き",
-            "en": "Clips",
-            "zh": "片段"
-          }
-        },
-        {
           "mark": "BL",
-          "url": "",
+          "url": "https://space.bilibili.com/3707036499970353",
           "accent": "#4aa3d4",
           "label": {
             "ja": "bilibili",
