@@ -70,21 +70,6 @@
             "en": "Live streams",
             "zh": "直播・歌回"
           }
-        },
-        {
-          "mark": "BL",
-          "url": "https://space.bilibili.com/3707036499970353",
-          "accent": "#4aa3d4",
-          "label": {
-            "ja": "bilibili",
-            "en": "bilibili",
-            "zh": "哔哩哔哩"
-          },
-          "sub": {
-            "ja": "中国語圏向け",
-            "en": "For Chinese viewers",
-            "zh": "中文区"
-          }
         }
       ]
     }
