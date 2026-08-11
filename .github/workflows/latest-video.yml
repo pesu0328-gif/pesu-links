@@ -27,10 +27,12 @@ name: 最新曲を取得
 
 on:
   schedule:
-    # 30分おき。毎時 :00 はGitHub側が最も混む時刻で、実際に21:00と23:00の枠が
-    # 続けてスキップされたため、混雑を避けて :13 と :43 に置いている。
-    # 公開リポジトリのActionsは無料枠が無制限なので、頻度を上げても費用は増えない。
-    - cron: "13,43 * * * *"
+    # 更新するのは1日1回、JST 22:30 以降だけ（下の「更新する日か判定する」で制御）。
+    # GitHubはスケジュール枠を高い確率でスキップするため（実測で約85%）、
+    # 1日1枠しか置かないとその日ごと更新されないことが起きる。
+    # 枠を15分おきに多く置き、実際に走った最初の1回だけ処理させることで
+    # 「毎日ちょうど1回」を成立させている。走らない枠は数秒で終わる。
+    - cron: "*/15 * * * *"
   workflow_dispatch: # Actionsタブから手動実行するためのボタン
 
 permissions:
@@ -46,7 +48,57 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # JST 22:30 を1日の区切りとして、その区切りごとに1回だけ本処理を通す。
+      # 22:30 を過ぎた最初の実行が処理し、以降その日は素通りする。
+      # GitHubが22:30台の枠を全部スキップしても、深夜に走った回が拾う。
+      - name: 更新する日か判定する
+        id: gate
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          python3 - <<'PY'
+          import datetime, json, os
+
+          STATE = "last-run.json"
+          JST = datetime.timezone(datetime.timedelta(hours=9))
+          now = datetime.datetime.now(JST)
+
+          def decide(run, why):
+              with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+                  f.write(f"run={'true' if run else 'false'}\n")
+              print(why)
+              raise SystemExit(0)
+
+          if os.environ.get("EVENT") == "workflow_dispatch":
+              decide(True, "手動実行なので、時刻に関係なく更新します")
+
+          # 直近の 22:30 を、その回が属する「日」の基準にする。
+          # 22:30 より前なら前日の 22:30 が基準になるので、
+          # 日付をまたいで走っても同じ枠として扱える。
+          anchor = now.replace(hour=22, minute=30, second=0, microsecond=0)
+          if now < anchor:
+              anchor -= datetime.timedelta(days=1)
+          slot = anchor.strftime("%Y-%m-%d")
+
+          try:
+              with open(STATE, encoding="utf-8") as f:
+                  last = json.load(f).get("slot")
+          except (OSError, json.JSONDecodeError):
+              last = None
+
+          if last == slot:
+              decide(False, f"JST {now:%m/%d %H:%M} — {slot} の枠は更新済みなので何もしません")
+
+          with open(STATE, "w", encoding="utf-8") as f:
+              json.dump({"slot": slot,
+                         "ranAt": now.strftime("%Y-%m-%d %H:%M JST")}, f,
+                        ensure_ascii=False, indent=1)
+              f.write("\n")
+          decide(True, f"JST {now:%m/%d %H:%M} — {slot} の枠として更新します")
+          PY
+
       - name: 最新曲とチャンネルアイコンを取得して反映する
+        if: steps.gate.outputs.run == 'true'
         env:
           CHANNEL_URL: https://www.youtube.com/@pesu_/videos
           # YouTubeのチャンネルアイコンを自動で同期する。
@@ -524,7 +576,7 @@ jobs:
       # 前の手順が失敗しても実行する。最新曲の解析に失敗しても、
       # 取得できたアイコンだけは反映しておきたいため。
       - name: 変更があればコミットする
-        if: always()
+        if: always() && steps.gate.outputs.run == 'true'
         run: |
           set -euo pipefail
           # git status なら「変更あり」も「新規ファイル」も同じ判定で拾える
